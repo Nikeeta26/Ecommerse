@@ -1,6 +1,7 @@
 package com.ecommerce.security;
 
 import com.ecommerce.model.User;
+import com.ecommerce.model.Admin;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
@@ -47,6 +48,23 @@ public class UserPrincipal implements UserDetails {
             username,
             user.getEmail(),
             user.getPassword(),
+            authorities
+        );
+    }
+
+    public static UserPrincipal create(Admin admin) {
+        List<GrantedAuthority> authorities = Collections.singletonList(
+            new SimpleGrantedAuthority("ROLE_ADMIN")
+        );
+
+        String username = admin.getEmail() != null ? admin.getEmail() : admin.getPhone();
+
+        return new UserPrincipal(
+            admin.getId(),
+            admin.getFullName(),
+            username,
+            admin.getEmail(),
+            admin.getPassword(),
             authorities
         );
     }

@@ -18,6 +18,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -38,6 +39,9 @@ public class AuthController {
 
     @Value("${admin.setup.code:}")
     private String adminSetupCode;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
@@ -84,17 +88,28 @@ public class AuthController {
             throw new SecurityException("Invalid admin setup code");
         }
 
-        // Create only in admins table (no user row)
-        adminRepository.findByEmail(request.getEmail()).ifPresent(a -> {
-            throw new IllegalArgumentException("Admin email already exists");
-        });
+        // Validate either email or phone is provided
+        if ((request.getEmail() == null || request.getEmail().isBlank()) &&
+            (request.getPhone() == null || request.getPhone().isBlank())) {
+            throw new IllegalArgumentException("Either email or phone must be provided for admin");
+        }
 
+        // Uniqueness checks in admins table
+        if (request.getEmail() != null && !request.getEmail().isBlank() && adminRepository.existsByEmail(request.getEmail())) {
+            throw new IllegalArgumentException("Admin email already exists");
+        }
+        if (request.getPhone() != null && !request.getPhone().isBlank() && adminRepository.existsByPhone(request.getPhone())) {
+            throw new IllegalArgumentException("Admin phone already exists");
+        }
+
+        // Persist only in admins table with hashed password
         Admin a = new Admin();
         a.setFullName(request.getFullName());
         a.setEmail(request.getEmail());
         a.setPhone(request.getPhone());
+        a.setPassword(passwordEncoder.encode(request.getPassword()));
         adminRepository.save(a);
 
-        return ResponseEntity.ok(new ApiResponse(true, "Admin created in admins table"));
+        return ResponseEntity.ok(new ApiResponse(true, "Admin created successfully"));
     }
 }

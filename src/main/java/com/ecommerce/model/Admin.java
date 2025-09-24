@@ -22,4 +22,8 @@ public class Admin extends BaseEntity {
 
     @Column(unique = true)
     private String phone;
+
+    // Note: keep nullable during migration to avoid failing on existing rows; new admins always get a hashed password.
+    @Column
+    private String password;
 }

@@ -20,7 +20,7 @@ public class ProductController {
 
     // Public endpoints
     @GetMapping("/products")
-    public ResponseEntity<Page<Product>> getAll(@PageableDefault(size = 10, sort = "createdAt") Pageable pageable) {
+    public ResponseEntity<Page<Product>> getAll( Pageable pageable) {
         return ResponseEntity.ok(productService.findAll(pageable));
     }
 
