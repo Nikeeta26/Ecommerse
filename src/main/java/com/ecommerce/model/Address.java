@@ -36,6 +36,9 @@ public class Address extends BaseEntity {
     @Column(name = "is_default")
     private boolean isDefault = false;
     
+    @Column(name = "is_active")
+    private boolean isActive = true;
+    
     @Column(name = "address_type")
     @Enumerated(EnumType.STRING)
     private AddressType addressType;

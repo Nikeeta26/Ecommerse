@@ -8,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 
@@ -16,6 +17,19 @@ public class ProductServiceImpl implements ProductService {
 
     @Autowired
     private ProductRepository productRepository;
+
+    @Override
+    public List<Product> findAll() {
+        return productRepository.findAll();
+    }
+    
+    @Override
+    public List<Product> findByCategory(Product.Category category) {
+        if (category == null) {
+            throw new IllegalArgumentException("Category cannot be null");
+        }
+        return productRepository.findByCategory(category);
+    }
 
     @Override
     public Page<Product> findAll(Pageable pageable) {
@@ -34,16 +48,18 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public Product update(Long id, Product product) {
-        Product existing = productRepository.findById(id)
-                .orElseThrow(() -> new NoSuchElementException("Product not found"));
-        existing.setName(product.getName());
-        existing.setDescription(product.getDescription());
-        existing.setPrice(product.getPrice());
-        existing.setStock(product.getStock());
-        existing.setImageUrl(product.getImageUrl());
-        existing.setCategory(product.getCategory());
-        return productRepository.save(existing);
+    public Optional<Product> update(Long id, Product product) {
+        return productRepository.findById(id)
+                .map(existing -> {
+                    existing.setName(product.getName());
+                    existing.setDescription(product.getDescription());
+                    existing.setPrice(product.getPrice());
+                    existing.setStock(product.getStock());
+                    existing.setImageUrl(product.getImageUrl());
+                    existing.setCategory(product.getCategory());
+//                    existing.setActive(product.getActive());
+                    return productRepository.save(existing);
+                });
     }
 
     @Override

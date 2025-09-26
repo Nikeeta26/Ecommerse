@@ -55,3 +55,22 @@ public class OrderController {
         return ResponseEntity.ok(orderService.updateStatus(id, req.getStatus()));
     }
 }
+
+
+
+
+//
+//
+//{
+//        "shippingAddressId": 17,
+//        "items": [
+//        {
+//        "productId": 3,
+//        "quantity": 2
+//        },
+//        {
+//        "productId": 5,
+//        "quantity": 1
+//        }
+//        ]
+//        }
