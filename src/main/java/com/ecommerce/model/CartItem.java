@@ -27,4 +27,15 @@ public class CartItem extends BaseEntity {
 
     @Column(name = "unit_price", nullable = false, precision = 10, scale = 2)
     private BigDecimal unitPrice;
+    
+    /**
+     * Calculates the subtotal for this cart item (unit price × quantity)
+     * @return the subtotal as BigDecimal
+     */
+    public BigDecimal getSubtotal() {
+        if (unitPrice == null || quantity == null) {
+            return BigDecimal.ZERO;
+        }
+        return unitPrice.multiply(BigDecimal.valueOf(quantity));
+    }
 }

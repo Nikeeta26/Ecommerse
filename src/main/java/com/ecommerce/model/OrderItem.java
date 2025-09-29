@@ -38,4 +38,15 @@ public class OrderItem extends BaseEntity {
             this.subtotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
         }
     }
+    
+    /**
+     * Returns the subtotal for this order item (unit price × quantity)
+     * @return the calculated subtotal
+     */
+    public BigDecimal getSubtotal() {
+        if (subtotal == null && unitPrice != null && quantity != null) {
+            subtotal = unitPrice.multiply(BigDecimal.valueOf(quantity));
+        }
+        return subtotal != null ? subtotal : BigDecimal.ZERO;
+    }
 }
