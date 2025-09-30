@@ -10,9 +10,14 @@ import com.ecommerce.repository.AdminRepository;
 import com.ecommerce.security.JwtTokenProvider;
 import com.ecommerce.security.UserPrincipal;
 import com.ecommerce.service.UserService;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -44,7 +49,10 @@ public class AuthController {
     private PasswordEncoder passwordEncoder;
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<AuthResponse> authenticateUser(
+            @Valid @RequestBody LoginRequest loginRequest,
+            HttpServletResponse response) {
+        
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         loginRequest.getIdentifier(),
@@ -55,13 +63,39 @@ public class AuthController {
         SecurityContextHolder.getContext().setAuthentication(authentication);
         String jwt = tokenProvider.generateToken(authentication);
 
+        // Set HTTP-only cookie
+        ResponseCookie cookie = ResponseCookie.from("jwt", jwt)
+                .httpOnly(true)
+                .secure(false) // Set to true in production with HTTPS
+                .path("/")
+                .maxAge(7 * 24 * 60 * 60) // 7 days
+                .sameSite("Lax")
+                .build();
+
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+
         UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
-        AuthResponse resp = new AuthResponse(jwt);
+        AuthResponse resp = new AuthResponse("Authentication successful");
         resp.setUserId(principal.getId());
         resp.setFullName(principal.getName());
         resp.setEmail(principal.getEmail());
         resp.setRole(principal.getAuthorities().iterator().next().getAuthority());
         return ResponseEntity.ok(resp);
+    }
+    
+    @PostMapping("/logout")
+    public ResponseEntity<?> logoutUser(HttpServletResponse response) {
+        ResponseCookie cookie = ResponseCookie.from("jwt", "")
+                .httpOnly(true)
+                .secure(false) // Set to true in production with HTTPS
+                .path("/")
+                .maxAge(0)
+                .sameSite("Lax")
+                .build();
+
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+        SecurityContextHolder.clearContext();
+        return ResponseEntity.ok(new ApiResponse(true, "Logged out successfully"));
     }
 
     @PostMapping("/signup")

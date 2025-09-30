@@ -106,3 +106,73 @@ public class CartController {
         return response;
     }
 }
+
+
+
+
+
+//curl --location 'http://localhost:8080/api/carts/items' \
+//        --header 'Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiJwcEBnbWFpbC5jb20iLCJpYXQiOjE3NTkyNDk4MTEsImV4cCI6MTc1OTMzNjIxMX0.wFdDk1Mt2lXMce1XcBmofBHrp9jHpOojevh5dLbQEL-WBPIwB59JPE3TRJ9i0G5G' \
+//        --header 'Content-Type: application/json' \
+//        --data '{
+//        "productId": 13,
+//        "quantity": 2
+//        }'
+
+
+
+
+//curl --location --request PUT 'http://localhost:8080/api/carts/items/1' \
+//        --header 'Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiJwcEBnbWFpbC5jb20iLCJpYXQiOjE3NTkyNDk4MTEsImV4cCI6MTc1OTMzNjIxMX0.wFdDk1Mt2lXMce1XcBmofBHrp9jHpOojevh5dLbQEL-WBPIwB59JPE3TRJ9i0G5G' \
+//        --header 'Content-Type: application/json' \
+//        --data '{
+//        "quantity": 5,
+//        "productId": 13
+//        }'
+
+
+//curl --location --request DELETE 'http://localhost:8080/api/carts/items/1' \
+//        --header 'Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiJwcEBnbWFpbC5jb20iLCJpYXQiOjE3NTkyNDk4MTEsImV4cCI6MTc1OTMzNjIxMX0.wFdDk1Mt2lXMce1XcBmofBHrp9jHpOojevh5dLbQEL-WBPIwB59JPE3TRJ9i0G5G'
+
+
+
+//
+//curl --location 'http://localhost:8080/api/carts' \
+//        --header 'Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiJwcEBnbWFpbC5jb20iLCJpYXQiOjE3NTkyNDk4MTEsImV4cCI6MTc1OTMzNjIxMX0.wFdDk1Mt2lXMce1XcBmofBHrp9jHpOojevh5dLbQEL-WBPIwB59JPE3TRJ9i0G5G'
+
+//curl --location --request POST 'http://localhost:8080/api/auth/logout' \
+//        --header 'Content-Type: application/json'
+
+
+//
+//curl --location 'http://localhost:8080/api/orders' \
+//        --header 'Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiJwcEBnbWFpbC5jb20iLCJpYXQiOjE3NTkyNDk4MTEsImV4cCI6MTc1OTMzNjIxMX0.wFdDk1Mt2lXMce1XcBmofBHrp9jHpOojevh5dLbQEL-WBPIwB59JPE3TRJ9i0G5G' \
+//        --header 'Content-Type: application/json' \
+//        --data '{
+//
+//
+//        "shippingAddressId": 17,
+//        "paymentMethod": "CREDIT_CARD",
+//        "notes": "Please deliver after 5 PM",
+//        "items": [
+//        {
+//        "id": 4,
+//        "productId": 4,
+//        "productName": "Sample Phone",
+//        "unitPrice": 499.99,
+//        "quantity": 4,
+//        "subtotal": 1999.96
+//        },
+//        {
+//        "id": 5,
+//        "productId": 5,
+//        "productName": "Sample Phone",
+//        "unitPrice": 499.99,
+//        "quantity": 2,
+//        "subtotal": 999.98
+//        }
+//        ],
+//        "total": 2999.94,
+//        "totalItems": 2
+//
+//        }'

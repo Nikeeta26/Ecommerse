@@ -43,16 +43,16 @@ public class OrderController {
     public ResponseEntity<OrderDtos.OrderResponse> placeOrder(
             @AuthenticationPrincipal UserPrincipal principal,
             @Valid @RequestBody OrderDtos.PlaceOrderRequest request) {
-        
+
         var user = userRepository.findById(principal.getId())
             .orElseThrow(() -> new RuntimeException("User not found"));
-        
+
         Order order = orderService.placeOrder(user, request);
-        
+
         URI location = ServletUriComponentsBuilder
             .fromCurrentRequest().path("/{id}")
             .buildAndExpand(order.getId()).toUri();
-        
+
         return ResponseEntity.created(location).body(OrderDtos.OrderResponse.fromEntity(order));
     }
 
@@ -63,10 +63,10 @@ public class OrderController {
     public ResponseEntity<OrderDtos.OrderResponse> getOrderDetails(
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable Long orderId) {
-        
+
         var user = userRepository.findById(principal.getId())
             .orElseThrow(() -> new RuntimeException("User not found"));
-        
+
         Order order = orderService.getOrderForUser(user, orderId);
         return ResponseEntity.ok(OrderDtos.OrderResponse.fromEntity(order));
     }
@@ -82,22 +82,22 @@ public class OrderController {
             @RequestParam(required = false) Order.OrderStatus status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) {
-        
+
         var user = userRepository.findById(principal.getId())
             .orElseThrow(() -> new RuntimeException("User not found"));
-        
+
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        
+
         // If no filters are applied, return all orders
         if (status == null && fromDate == null && toDate == null) {
             return ResponseEntity.ok(orderService.getOrdersForUser(user, pageable)
                 .map(OrderDtos.OrderSummary::fromEntity));
         }
-        
+
         // Apply filters
         Page<Order> orders = orderService.findUserOrdersWithFilters(
             user, status, fromDate, toDate, pageable);
-            
+
         return ResponseEntity.ok(orders.map(OrderDtos.OrderSummary::fromEntity));
     }
 
@@ -109,16 +109,16 @@ public class OrderController {
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable Long orderId,
             @RequestParam(required = false) String reason) {
-        
+
         var user = userRepository.findById(principal.getId())
             .orElseThrow(() -> new RuntimeException("User not found"));
-        
+
         Order cancelledOrder = orderService.cancelOrder(user, orderId, reason);
         return ResponseEntity.ok(OrderDtos.OrderResponse.fromEntity(cancelledOrder));
     }
 
     // Admin endpoints
-    
+
     /**
      * Get all orders with filtering and pagination (admin only)
      */
@@ -131,15 +131,15 @@ public class OrderController {
             @RequestParam(required = false) Order.OrderStatus status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) {
-        
+
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        
+
         Page<Order> orders = orderService.findAllWithFilters(
             userId, status, fromDate, toDate, pageable);
-            
+
         return ResponseEntity.ok(orders.map(OrderDtos.AdminOrderSummary::fromEntity));
     }
-    
+
     /**
      * Get orders for a specific user (admin only)
      */
@@ -149,10 +149,10 @@ public class OrderController {
             @PathVariable Long userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        
+
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<Order> orders = orderService.getOrdersForUser(userId, pageable);
-        
+
         return ResponseEntity.ok(orders.map(OrderDtos.AdminOrderSummary::fromEntity));
     }
 
@@ -164,15 +164,15 @@ public class OrderController {
     public ResponseEntity<OrderDtos.AdminOrderResponse> updateOrderStatus(
             @PathVariable Long orderId,
             @Valid @RequestBody OrderDtos.UpdateStatusRequest request) {
-            
+
         Order updatedOrder = orderService.updateOrderStatus(orderId, request.getStatus());
-        
+
         // The OrderService implementation should handle date updates based on status
         // as it's part of the business logic
-        
+
         return ResponseEntity.ok(OrderDtos.AdminOrderResponse.fromEntity(updatedOrder));
     }
-    
+
     /**
      * Get order details (admin only)
      */
@@ -180,10 +180,10 @@ public class OrderController {
     @GetMapping("/admin/{orderId}")
     public ResponseEntity<OrderDtos.AdminOrderResponse> getOrderDetailsAdmin(
             @PathVariable Long orderId) {
-                
+
         Order order = orderService.getOrderById(orderId)
             .orElseThrow(() -> new RuntimeException("Order not found"));
-            
+
         return ResponseEntity.ok(OrderDtos.AdminOrderResponse.fromEntity(order));
     }
 }
@@ -201,3 +201,178 @@ public class OrderController {
 //ALTER TABLE orders ALTER COLUMN order_number SET NOT NULL;
 
 //ALTER TABLE orders ADD COLUMN order_date TIMESTAMP;
+
+
+
+
+
+
+
+//
+//rder and Cart API Documentation
+//Cart Endpoints
+//1. Get Active Cart
+//URL: GET /api/carts
+//Authentication: Required (JWT)
+//Response:
+//json
+//{
+//    "id": 1,
+//        "items": [
+//    {
+//        "id": 1,
+//            "productId": 101,
+//            "productName": "Product Name",
+//            "unitPrice": 29.99,
+//            "quantity": 2,
+//            "subtotal": 59.98
+//    }
+//  ],
+//    "total": 59.98,
+//        "totalItems": 1
+//}
+//2. Add Item to Cart
+//URL: POST /api/carts/items
+//Authentication: Required (JWT)
+//Request:
+//json
+//{
+//    "productId": 101,
+//        "quantity": 1
+//}
+//Response: Same as Get Active Cart
+//3. Update Cart Item Quantity
+//URL: PUT /api/carts/items/{itemId}
+//Authentication: Required (JWT)
+//Request:
+//json
+//{
+//    "productId": 101,
+//        "quantity": 3
+//}
+//Response: Same as Get Active Cart
+//4. Remove Item from Cart
+//URL: DELETE /api/carts/items/{itemId}
+//Authentication: Required (JWT)
+//Response: Same as Get Active Cart
+//5. Clear Cart
+//URL: DELETE /api/carts
+//Authentication: Required (JWT)
+//Response: 204 No Content
+//Order Endpoints
+//1. Place Order
+//URL: POST /api/orders
+//Authentication: Required (JWT)
+//Request:
+//json
+//{
+//    "shippingAddressId": 1,
+//        "items": [
+//    {
+//        "productId": 101,
+//            "quantity": 2
+//    }
+//  ],
+//    "cartId": 1
+//}
+//Response:
+//json
+//{
+//    "id": 1,
+//        "orderNumber": "ORD-12345",
+//        "orderDate": "2025-09-30T12:00:00",
+//        "status": "PENDING",
+//        "subtotal": 59.98,
+//        "tax": 5.99,
+//        "shippingCost": 4.99,
+//        "total": 70.96,
+//        "items": [
+//    {
+//        "id": 1,
+//            "productId": 101,
+//            "productName": "Product Name",
+//            "productImage": "image-url.jpg",
+//            "unitPrice": 29.99,
+//            "quantity": 2,
+//            "subtotal": 59.98
+//    }
+//  ],
+//    "shippingAddressId": 1,
+//        "shippingAddressDetails": "123 Main St, City, Country"
+//}
+//2. Get Order Details
+//URL: GET /api/orders/{orderId}
+//Authentication: Required (JWT)
+//Response: Same as Place Order response
+//3. Get User's Orders
+//URL: GET /api/orders/my-orders?page=0&size=10&status=DELIVERED&fromDate=2025-01-01&toDate=2025-12-31
+//Query Parameters:
+//page: Page number (default: 0)
+//size: Items per page (default: 10)
+//status: Filter by status (optional)
+//fromDate: Filter orders after this date (optional, format: yyyy-MM-dd)
+//toDate: Filter orders before this date (optional, format: yyyy-MM-dd)
+//Response:
+//json
+//{
+//    "content": [
+//    {
+//        "id": 1,
+//            "orderNumber": "ORD-12345",
+//            "orderDate": "2025-09-30T12:00:00",
+//            "status": "DELIVERED",
+//            "total": 70.96,
+//            "totalItems": 2
+//    }
+//  ],
+//    "pageable": { ... },
+//    "totalPages": 1,
+//        "totalElements": 1,
+//        "last": true,
+//        "size": 10,
+//        "number": 0,
+//        "sort": { ... },
+//    "first": true,
+//        "numberOfElements": 1,
+//        "empty": false
+//}
+//4. Cancel Order
+//URL: POST /api/orders/{orderId}/cancel?reason=Changed%20mind
+//Authentication: Required (JWT)
+//Query Parameters:
+//reason: Reason for cancellation (optional)
+//Response: Same as Get Order Details
+//5. Admin: Get All Orders (Admin Only)
+//URL: GET /api/orders/admin?page=0&size=20&userId=1&status=DELIVERED&fromDate=2025-01-01&toDate=2025-12-31
+//Authentication: Required (JWT with ADMIN role)
+//Query Parameters: Same as user's orders, plus:
+//userId: Filter by user ID (optional)
+//Response: Paginated list of orders with admin details
+//6. Admin: Get Orders for User (Admin Only)
+//URL: GET /api/orders/user/{userId}?page=0&size=10
+//Authentication: Required (JWT with ADMIN role)
+//Response: Paginated list of user's orders with admin details
+//        7. Admin: Update Order Status (Admin Only)
+//URL: PUT /api/orders/{orderId}/status
+//Authentication: Required (JWT with ADMIN role)
+//Request:
+//json
+//{
+//    "status": "SHIPPED"
+//}
+//Response: Updated order details with admin fields
+//8. Admin: Get Order Details (Admin Only)
+//URL: GET /api/orders/admin/{orderId}
+//Authentication: Required (JWT with ADMIN role)
+//Response: Order details with admin fields
+//        Enums
+//OrderStatus
+//        PENDING
+//PROCESSING
+//        SHIPPED
+//DELIVERED
+//        CANCELLED
+//REFUNDED
+//        Notes
+//All endpoints require authentication via JWT token in the Authorization header
+//
