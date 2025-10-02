@@ -2,6 +2,7 @@ package com.ecommerce.dto;
 
 public class AuthResponse {
     private String accessToken;
+    private String token;
     private String tokenType = "Bearer";
 
     private Long userId;
@@ -10,12 +11,16 @@ public class AuthResponse {
     private String phone;
     private String role;
 
-    public AuthResponse(String accessToken) {
-        this.accessToken = accessToken;
+    public AuthResponse(String message) {
+        // Constructor for backward compatibility
+        this.accessToken = message;
     }
 
     public String getAccessToken() { return accessToken; }
     public void setAccessToken(String accessToken) { this.accessToken = accessToken; }
+    
+    public String getToken() { return token; }
+    public void setToken(String token) { this.token = token; }
 
     public String getTokenType() { return tokenType; }
     public void setTokenType(String tokenType) { this.tokenType = tokenType; }

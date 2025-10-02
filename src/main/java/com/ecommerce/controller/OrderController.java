@@ -16,17 +16,25 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import com.ecommerce.exception.InvalidOrderException;
+import com.ecommerce.exception.ResourceNotFoundException;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+
+import java.util.Collections;
 
 import java.net.URI;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 @RequestMapping("/api/orders")
 public class OrderController {
-
+    
+    private static final Logger logger = LoggerFactory.getLogger(OrderController.class);
+    
     private final OrderService orderService;
     private final UserRepository userRepository;
 
@@ -72,6 +80,90 @@ public class OrderController {
     }
 
     /**
+     * Cancel an order
+     */
+    /**
+     * Cancel an order
+     * @param principal The authenticated user
+     * @param orderId The ID of the order to cancel
+     * @param request The cancellation request containing reason and optional notes
+     * @return The updated order details
+     */
+    @PostMapping("/{orderId}/cancel")
+    @ResponseBody
+    public ResponseEntity<?> cancelOrder(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable Long orderId,
+            @RequestBody(required = false) String requestBody) {
+        
+        logger.info("Received cancel order request for order {}", orderId);
+        
+        try {
+            // Parse the request body manually to debug
+            logger.debug("Raw request body: {}", requestBody);
+            
+            // Default values
+            String reason = "Order cancelled by user";
+            String additionalNotes = "";
+            
+            if (requestBody != null && !requestBody.trim().isEmpty()) {
+                try {
+                    // Remove all whitespace and braces for simpler parsing
+                    String cleanBody = requestBody.replaceAll("\\s", "");
+                    
+                    // Extract reason
+                    int reasonStart = cleanBody.indexOf("\"reason\":\"");
+                    if (reasonStart > 0) {
+                        reason = cleanBody.substring(reasonStart + 10, cleanBody.indexOf("\"", reasonStart + 10));
+                    }
+                    
+                    // Extract additionalNotes if present
+                    int notesStart = cleanBody.indexOf("\"additionalNotes\":\"");
+                    if (notesStart > 0) {
+                        additionalNotes = cleanBody.substring(notesStart + 18, cleanBody.indexOf("\"", notesStart + 18));
+                    }
+                } catch (Exception e) {
+                    logger.warn("Error parsing request body: {}", e.getMessage());
+                    // Continue with default values
+                }
+            }
+            
+            logger.info("Parsed cancel request - reason: {}, additionalNotes: {}", reason, additionalNotes);
+            
+            var user = userRepository.findById(principal.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+            
+            logger.debug("Found user: {}", user.getId());
+            
+            // Call the service with the parsed reason
+            Order order = orderService.cancelOrder(user, orderId, reason);
+            
+            // Log additional notes if provided
+            if (additionalNotes != null && !additionalNotes.isEmpty()) {
+                logger.info("Additional notes for order {} cancellation: {}", orderId, additionalNotes);
+            }
+            
+            logger.info("Order {} cancelled successfully by user {}", orderId, user.getId());
+            
+            return ResponseEntity.ok(OrderDtos.OrderResponse.fromEntity(order));
+            
+        } catch (ResourceNotFoundException e) {
+            logger.warn("Order not found: {}", orderId);
+            return ResponseEntity.status(404)
+                .body(Collections.singletonMap("error", "Order not found"));
+                
+        } catch (InvalidOrderException e) {
+            logger.warn("Invalid order cancellation request for order {}: {}", orderId, e.getMessage());
+            return ResponseEntity.badRequest()
+                .body(Collections.singletonMap("error", e.getMessage()));
+                
+        } catch (Exception e) {
+            logger.error("Error cancelling order {}: {}", orderId, e.getMessage(), e);
+            return ResponseEntity.internalServerError()
+                .body(Collections.singletonMap("error", "An error occurred while processing your request"));
+        }
+    }
+    /**
      * Get current user's order history with pagination and filtering
      */
     @GetMapping("/my-orders")
@@ -99,22 +191,6 @@ public class OrderController {
             user, status, fromDate, toDate, pageable);
 
         return ResponseEntity.ok(orders.map(OrderDtos.OrderSummary::fromEntity));
-    }
-
-    /**
-     * Cancel an order (if allowed)
-     */
-    @PostMapping("/{orderId}/cancel")
-    public ResponseEntity<OrderDtos.OrderResponse> cancelOrder(
-            @AuthenticationPrincipal UserPrincipal principal,
-            @PathVariable Long orderId,
-            @RequestParam(required = false) String reason) {
-
-        var user = userRepository.findById(principal.getId())
-            .orElseThrow(() -> new RuntimeException("User not found"));
-
-        Order cancelledOrder = orderService.cancelOrder(user, orderId, reason);
-        return ResponseEntity.ok(OrderDtos.OrderResponse.fromEntity(cancelledOrder));
     }
 
     // Admin endpoints
@@ -152,29 +228,11 @@ public class OrderController {
 
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<Order> orders = orderService.getOrdersForUser(userId, pageable);
-
         return ResponseEntity.ok(orders.map(OrderDtos.AdminOrderSummary::fromEntity));
     }
 
     /**
-     * Update order status (admin only)
-     */
-    @PreAuthorize("hasRole('ADMIN')")
-    @PutMapping("/{orderId}/status")
-    public ResponseEntity<OrderDtos.AdminOrderResponse> updateOrderStatus(
-            @PathVariable Long orderId,
-            @Valid @RequestBody OrderDtos.UpdateStatusRequest request) {
-
-        Order updatedOrder = orderService.updateOrderStatus(orderId, request.getStatus());
-
-        // The OrderService implementation should handle date updates based on status
-        // as it's part of the business logic
-
-        return ResponseEntity.ok(OrderDtos.AdminOrderResponse.fromEntity(updatedOrder));
-    }
-
-    /**
-     * Get order details (admin only)
+     * Admin: Get order details
      */
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/admin/{orderId}")
@@ -185,6 +243,24 @@ public class OrderController {
             .orElseThrow(() -> new RuntimeException("Order not found"));
 
         return ResponseEntity.ok(OrderDtos.AdminOrderResponse.fromEntity(order));
+    }
+
+    /**
+     * Update order status (Admin only)
+     */
+    @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/{orderId}/status")
+    public ResponseEntity<OrderDtos.AdminOrderResponse> updateOrderStatus(
+            @PathVariable Long orderId,
+            @Valid @RequestBody OrderDtos.UpdateStatusRequest request) {
+
+        Order updatedOrder;
+        try {
+            updatedOrder = orderService.updateOrderStatus(orderId, request.getStatus());
+            return ResponseEntity.ok(OrderDtos.AdminOrderResponse.fromEntity(updatedOrder));
+        } catch (InvalidOrderException e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
 }
 

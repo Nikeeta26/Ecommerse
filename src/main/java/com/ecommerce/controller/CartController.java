@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
@@ -24,7 +25,6 @@ public class CartController {
     private final CartService cartService;
     private final UserRepository userRepository;
 
-    @Autowired
     public CartController(CartService cartService, UserRepository userRepository) {
         this.cartService = cartService;
         this.userRepository = userRepository;
@@ -38,17 +38,15 @@ public class CartController {
         Cart cart = cartService.getOrCreateUserCart(user);
         return ResponseEntity.ok(mapToCartResponse(cart));
     }
-
-    @PostMapping("/items")
-    public ResponseEntity<CartDtos.CartResponse> addItemToCart(
+    
+    @GetMapping("/{cartId}")
+    @PreAuthorize("hasRole('ADMIN') or @cartService.isUserCartOwner(#principal.id, #cartId)")
+    public ResponseEntity<CartDtos.CartResponse> getCartById(
             @AuthenticationPrincipal UserPrincipal principal,
-            @Valid @RequestBody CartDtos.AddItemRequest request) {
-
-        var user = userRepository.findById(principal.getId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        Cart updatedCart = cartService.addItemToCart(user, request.getProductId(), request.getQuantity());
-        return ResponseEntity.ok(mapToCartResponse(updatedCart));
+            @PathVariable Long cartId) {
+                
+        Cart cart = cartService.getCartById(cartId);
+        return ResponseEntity.ok(mapToCartResponse(cart));
     }
 
     @PutMapping("/items/{itemId}")
@@ -71,7 +69,7 @@ public class CartController {
 
         var user = userRepository.findById(principal.getId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
-
+                
         Cart updatedCart = cartService.removeItemFromCart(user, itemId);
         return ResponseEntity.ok(mapToCartResponse(updatedCart));
     }

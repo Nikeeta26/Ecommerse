@@ -76,10 +76,14 @@ public class AuthController {
 
         UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
         AuthResponse resp = new AuthResponse("Authentication successful");
+
         resp.setUserId(principal.getId());
         resp.setFullName(principal.getName());
         resp.setEmail(principal.getEmail());
         resp.setRole(principal.getAuthorities().iterator().next().getAuthority());
+        resp.setToken(jwt);
+        resp.setTokenType("Bearer");
+        resp.setAccessToken(jwt); // For backward compatibility
         return ResponseEntity.ok(resp);
     }
     
