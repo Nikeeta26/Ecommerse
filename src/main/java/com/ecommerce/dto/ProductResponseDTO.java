@@ -20,6 +20,14 @@ public class ProductResponseDTO {
     private String imageUrl;
     private Product.Category category;
     private Boolean active;
+    
+    // Reusable product fields
+    private Boolean reusable;
+    private Boolean requiresSubscription;
+    private BigDecimal depositAmount;
+    private BigDecimal refillPrice;
+    private Integer refillQuantity;
+    private Integer refillFrequencyDays;
 
     public static ProductResponseDTO fromProduct(Product product) {
         if (product == null) {
@@ -36,6 +44,12 @@ public class ProductResponseDTO {
         dto.setStock(product.getStock());
         dto.setImageUrl(product.getImageUrl());
         dto.setCategory(product.getCategory());
+        dto.setReusable(product.isReusable());
+        dto.setRequiresSubscription(product.isRequiresSubscription());
+        dto.setDepositAmount(product.getDepositAmount());
+        dto.setRefillPrice(product.getRefillPrice());
+        dto.setRefillQuantity(product.getRefillQuantity());
+        dto.setRefillFrequencyDays(product.getRefillFrequencyDays());
 
         
         return dto;

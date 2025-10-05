@@ -47,6 +47,7 @@ public class OrderDtos {
         private Long shippingAddressId;
         private List<OrderItemRequest> items = new ArrayList<>();
         private Long cartId; // Optional: if ordering from cart
+        private Order.OrderType orderType = Order.OrderType.REGULAR; // Default to REGULAR
 
         public Long getShippingAddressId() { return shippingAddressId; }
         public void setShippingAddressId(Long shippingAddressId) { this.shippingAddressId = shippingAddressId; }
@@ -54,6 +55,27 @@ public class OrderDtos {
         public void setItems(List<OrderItemRequest> items) { this.items = items; }
         public Long getCartId() { return cartId; }
         public void setCartId(Long cartId) { this.cartId = cartId; }
+        public Order.OrderType getOrderType() { return orderType; }
+        public void setOrderType(Order.OrderType orderType) { this.orderType = orderType; }
+    }
+    
+    public static class BuyNowRequest {
+        @NotNull(message = "Product ID is required")
+        private Long productId;
+        
+        @Min(value = 1, message = "Quantity must be at least 1")
+        private int quantity = 1;
+        
+        @NotNull(message = "Shipping address ID is required")
+        private Long shippingAddressId;
+        
+        // Getters and setters
+        public Long getProductId() { return productId; }
+        public void setProductId(Long productId) { this.productId = productId; }
+        public int getQuantity() { return quantity; }
+        public void setQuantity(int quantity) { this.quantity = quantity; }
+        public Long getShippingAddressId() { return shippingAddressId; }
+        public void setShippingAddressId(Long shippingAddressId) { this.shippingAddressId = shippingAddressId; }
     }
 
     public static class OrderItemResponse {
@@ -217,7 +239,7 @@ public class OrderDtos {
             summary.setStatus(order.getStatus());
             
             if (order.getUser() != null) {
-                summary.setCustomerName(order.getUser().getFullName());
+                summary.setCustomerName(order.getUser().getName());
                 summary.setCustomerEmail(order.getUser().getEmail());
             }
             
@@ -280,9 +302,9 @@ public class OrderDtos {
             
             // Set admin-specific fields
             if (order.getUser() != null) {
-                response.setCustomerName(order.getUser().getFullName());
+                response.setCustomerName(order.getUser().getName());
                 response.setCustomerEmail(order.getUser().getEmail());
-                response.setCustomerPhone(order.getUser().getPhone());
+                response.setCustomerPhone(order.getUser().getPhoneNumber());
             }
             
             response.setUpdatedAt(order.getUpdatedAt());

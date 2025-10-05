@@ -1,5 +1,6 @@
 package com.ecommerce.service;
 
+import com.ecommerce.dto.DirectOrderRequest;
 import com.ecommerce.dto.OrderDtos;
 import com.ecommerce.exception.InvalidOrderException;
 import com.ecommerce.exception.ResourceNotFoundException;
@@ -14,23 +15,42 @@ import java.util.List;
 import java.util.Optional;
 
 public interface OrderService {
+
+
+
     
     Order placeOrder(User user, OrderDtos.PlaceOrderRequest request);
     
-    Order getOrderForUser(User user, Long orderId) throws ResourceNotFoundException;
     
     List<Order> getOrdersForUser(User user);
     
     Page<Order> getOrdersForUser(User user, Pageable pageable);
     
-    Page<Order> getOrdersForUser(Long userId, Pageable pageable);
+    Order getOrderForUser(User user, Long orderId);
+    
+    /**
+     * Get order by ID without user context (admin only)
+     * @param orderId The ID of the order to retrieve
+     * @return The order with the specified ID
+     * @throws ResourceNotFoundException if the order is not found
+     */
+    Order getOrderById(Long orderId);
+    
+    Page<Order> searchOrders(String query, Pageable pageable);
+    
+    /**
+     * Place a direct order without adding to cart
+     * @param user The user placing the order
+     * @param request The direct order request
+     * @return The created order
+     */
+    Order placeDirectOrder(User user, DirectOrderRequest request);
     
     List<Order> getAllOrders();
     
     Page<Order> getAllOrders(Pageable pageable);
     
-    Optional<Order> getOrderById(Long orderId);
-    
+
     Order updateOrderStatus(Long orderId, Order.OrderStatus newStatus) throws InvalidOrderException;
     
     Order cancelOrder(User user, Long orderId, String reason) throws InvalidOrderException;
@@ -54,4 +74,29 @@ public interface OrderService {
         LocalDate fromDate,
         LocalDate toDate,
         Pageable pageable);
+        
+    /**
+     * Find all orders with filters (admin only)
+     */
+    Page<Order> findAllWithFilters(
+        Order.OrderStatus status,
+        LocalDate fromDate,
+        LocalDate toDate,
+        String searchQuery,
+        Pageable pageable);
+        
+    /**
+     * Creates a refill order for a subscription
+     * @param subscription The subscription to create the refill order for
+     * @return The created order
+     * @throws InvalidOrderException If the refill order cannot be created
+     */
+    Order createRefillOrder(com.ecommerce.model.Subscription subscription) throws InvalidOrderException;
+    
+    /**
+     * Finds all refill orders for a subscription
+     * @param subscriptionId The ID of the subscription
+     * @return List of refill orders
+     */
+    List<Order> findRefillOrdersBySubscription(Long subscriptionId);
 }

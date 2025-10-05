@@ -2,6 +2,7 @@ package com.ecommerce.controller;
 
 import com.ecommerce.dto.OrderDtos;
 import com.ecommerce.model.Order;
+import com.ecommerce.model.User;
 import com.ecommerce.security.UserPrincipal;
 import com.ecommerce.service.OrderService;
 import com.ecommerce.repository.UserRepository;
@@ -60,6 +61,42 @@ public class OrderController {
         URI location = ServletUriComponentsBuilder
             .fromCurrentRequest().path("/{id}")
             .buildAndExpand(order.getId()).toUri();
+
+        return ResponseEntity.created(location).body(OrderDtos.OrderResponse.fromEntity(order));
+    }
+
+    /**
+     * Buy now - Direct purchase of a single product
+     */
+    @PostMapping("/buy-now")
+    public ResponseEntity<OrderDtos.OrderResponse> buyNow(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @Valid @RequestBody OrderDtos.BuyNowRequest request) {
+
+        var user = userRepository.findById(principal.getId())
+            .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Create a PlaceOrderRequest from BuyNowRequest
+        OrderDtos.PlaceOrderRequest placeOrderRequest = new OrderDtos.PlaceOrderRequest();
+        placeOrderRequest.setShippingAddressId(request.getShippingAddressId());
+        
+        // Create a single order item
+        OrderDtos.OrderItemRequest itemRequest = new OrderDtos.OrderItemRequest();
+        itemRequest.setProductId(request.getProductId());
+        itemRequest.setQuantity(request.getQuantity());
+        placeOrderRequest.setItems(List.of(itemRequest));
+        
+        // Set order type to BUY_NOW
+        placeOrderRequest.setOrderType(Order.OrderType.BUY_NOW);
+
+        // Place the order
+        Order order = orderService.placeOrder(user, placeOrderRequest);
+
+        URI location = ServletUriComponentsBuilder
+            .fromCurrentRequest()
+            .path("/{id}")
+            .buildAndExpand(order.getId())
+            .toUri();
 
         return ResponseEntity.created(location).body(OrderDtos.OrderResponse.fromEntity(order));
     }
@@ -226,8 +263,12 @@ public class OrderController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
+        // First, fetch the user by ID
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + userId));
+            
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<Order> orders = orderService.getOrdersForUser(userId, pageable);
+        Page<Order> orders = orderService.getOrdersForUser(user, pageable);
         return ResponseEntity.ok(orders.map(OrderDtos.AdminOrderSummary::fromEntity));
     }
 
@@ -239,9 +280,7 @@ public class OrderController {
     public ResponseEntity<OrderDtos.AdminOrderResponse> getOrderDetailsAdmin(
             @PathVariable Long orderId) {
 
-        Order order = orderService.getOrderById(orderId)
-            .orElseThrow(() -> new RuntimeException("Order not found"));
-
+        Order order = orderService.getOrderById(orderId);
         return ResponseEntity.ok(OrderDtos.AdminOrderResponse.fromEntity(order));
     }
 
@@ -452,3 +491,8 @@ public class OrderController {
 //        Notes
 //All endpoints require authentication via JWT token in the Authorization header
 //
+
+
+
+
+

@@ -9,6 +9,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -31,11 +32,38 @@ public class User extends BaseEntity implements UserDetails {
     private String password;
 
     @Column(name = "full_name", nullable = false)
-    private String fullName;
-
+    private String name;
+    
+    @Column(name = "phone_number")
+    private String phoneNumber;
+    
+    @Column(name = "profile_image_url")
+    private String profileImageUrl;
+    
+    @Column(name = "last_login")
+    private LocalDateTime lastLogin;
+    
+    @Column(name = "is_active")
+    private Boolean isActive = true;
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private UserRole role = UserRole.ROLE_USER;
+    
+    // Helper methods for profile management
+    public Boolean getIsActive() {
+        return isActive;
+    }
+    public void setPhoneNumber(String phoneNumber) {
+        this.phoneNumber = phoneNumber;
+    }
+    
+    public String getProfileImageUrl() {
+        return profileImageUrl;
+    }
+    
+    public void setProfileImageUrl(String profileImageUrl) {
+        this.profileImageUrl = profileImageUrl;
+    }
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Address> addresses;
@@ -70,7 +98,7 @@ public class User extends BaseEntity implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return isActive();
+        return isActive != null && isActive;
     }
 
     public enum UserRole {

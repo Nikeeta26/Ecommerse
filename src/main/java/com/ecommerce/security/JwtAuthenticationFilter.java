@@ -12,6 +12,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -33,19 +34,54 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                                   FilterChain filterChain) throws ServletException, IOException {
         try {
             String jwt = getJwtFromRequest(request);
+            logger.debug("JWT token found in request: {}", jwt != null && !jwt.isEmpty());
             
-            if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
-                String username = tokenProvider.getUsernameFromJWT(jwt);
-                
-                UserDetails userDetails = userDetailsService.loadUserByUsername(username);
-                UsernamePasswordAuthenticationToken authentication = 
-                    new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+            if (StringUtils.hasText(jwt)) {
+                if (tokenProvider.validateToken(jwt)) {
+                    logger.debug("JWT token is valid");
+                    String username = tokenProvider.getUsernameFromJWT(jwt);
+                    
+                    if (username == null) {
+                        logger.error("Could not extract username from JWT token");
+                        response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid authentication token");
+                        return;
+                    }
+                    
+                    logger.debug("Extracted username from JWT: {}", username);
+                    
+                    try {
+                        UserDetails userDetails = userDetailsService.loadUserByUsername(username);
+                        logger.debug("User details loaded: {}", userDetails != null ? userDetails.getUsername() : "null");
+                        
+                        if (userDetails != null) {
+                            UsernamePasswordAuthenticationToken authentication = 
+                                new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                            
+                            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                            SecurityContextHolder.getContext().setAuthentication(authentication);
+                            logger.debug("Successfully set authentication in security context for user: {}", username);
+                        } else {
+                            logger.error("User details not found for username: {}", username);
+                            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not found");
+                            return;
+                        }
+                    } catch (UsernameNotFoundException ex) {
+                        logger.error("User not found: {}", ex.getMessage());
+                        response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "User not found");
+                        return;
+                    }
+                } else {
+                    logger.warn("Invalid JWT token");
+                    response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Invalid authentication token");
+                    return;
+                }
+            } else {
+                logger.debug("No JWT token found in request");
             }
         } catch (Exception ex) {
-            logger.error("Could not set user authentication in security context", ex);
+            logger.error("Error in JWT authentication: {}", ex.getMessage(), ex);
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Error processing authentication");
+            return;
         }
 
         filterChain.doFilter(request, response);

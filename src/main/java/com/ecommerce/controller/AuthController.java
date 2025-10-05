@@ -10,8 +10,6 @@ import com.ecommerce.repository.AdminRepository;
 import com.ecommerce.security.JwtTokenProvider;
 import com.ecommerce.security.UserPrincipal;
 import com.ecommerce.service.UserService;
-import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -99,13 +97,13 @@ public class AuthController {
 
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
         SecurityContextHolder.clearContext();
-        return ResponseEntity.ok(new ApiResponse(true, "Logged out successfully"));
+        return ResponseEntity.ok(ApiResponse.success("Logged out successfully"));
     }
 
     @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
         userService.registerUser(signUpRequest);
-        return ResponseEntity.ok(new ApiResponse(true, "User registered successfully"));
+        return ResponseEntity.ok(ApiResponse.success("User registered successfully"));
     }
 
     // Secure admin creation (admins table only) using setup code from application.properties
@@ -148,6 +146,6 @@ public class AuthController {
         a.setPassword(passwordEncoder.encode(request.getPassword()));
         adminRepository.save(a);
 
-        return ResponseEntity.ok(new ApiResponse(true, "Admin created successfully"));
+        return ResponseEntity.ok(ApiResponse.success("Admin created successfully"));
     }
 }

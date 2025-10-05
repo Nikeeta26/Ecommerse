@@ -27,9 +27,9 @@ public class UserPublicController {
         return userRepository.findByEmailOrPhone(email, phone)
                 .<ResponseEntity<?>>map(u -> ResponseEntity.ok(Map.of(
                         "id", u.getId(),
-                        "fullName", u.getFullName(),
+                        "name", u.getName(),
                         "email", u.getEmail(),
-                        "phone", u.getPhone()
+                        "phone", u.getPhoneNumber()
                 )))
                 .orElse(ResponseEntity.notFound().build());
     }

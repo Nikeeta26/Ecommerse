@@ -19,7 +19,7 @@ public class DataInitializer {
                     .anyMatch(u -> u.getRole() == User.UserRole.ROLE_ADMIN);
             if (!hasAdminUser) {
                 User admin = new User();
-                admin.setFullName("Admin User");
+                admin.setName("Admin User");
                 admin.setEmail("admin@shop.local");
                 admin.setPassword(passwordEncoder.encode("admin123"));
                 admin.setRole(User.UserRole.ROLE_ADMIN);

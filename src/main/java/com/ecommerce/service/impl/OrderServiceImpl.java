@@ -1,10 +1,12 @@
 package com.ecommerce.service.impl;
 
+import com.ecommerce.dto.DirectOrderRequest;
 import com.ecommerce.dto.OrderDtos;
 import com.ecommerce.exception.InsufficientStockException;
 import com.ecommerce.exception.InvalidOrderException;
 import com.ecommerce.exception.ResourceNotFoundException;
 import com.ecommerce.model.*;
+import com.ecommerce.model.Order.OrderType;
 import com.ecommerce.model.User.UserRole;
 import com.ecommerce.repository.*;
 import com.ecommerce.service.CartService;
@@ -23,6 +25,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,7 +34,7 @@ import java.util.UUID;
 public class OrderServiceImpl implements OrderService {
     
     private static final Logger logger = LoggerFactory.getLogger(OrderServiceImpl.class);
-    
+
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final OrderItemRepository orderItemRepository;
@@ -50,6 +53,76 @@ public class OrderServiceImpl implements OrderService {
         this.addressRepository = addressRepository;
     }
 
+
+
+
+
+    @Override
+    @Transactional
+    public Order placeDirectOrder(User user, DirectOrderRequest request) {
+        logger.info("Processing direct order for user: {}", user.getId());
+        
+        // Create order
+        Order order = new Order();
+        order.setUser(user);
+        order.setOrderNumber(generateOrderNumber());
+        order.setOrderDate(LocalDateTime.now());
+        order.setStatus(Order.OrderStatus.PENDING);
+        order.setType(OrderType.REGULAR);
+        order.setNotes(request.getNotes());
+        
+        // Set shipping address
+        Address shippingAddress = addressRepository.findById(request.getShippingAddressId())
+                .orElseThrow(() -> new ResourceNotFoundException("Shipping address not found with id: " + request.getShippingAddressId()));
+        
+        if (!shippingAddress.getUser().getId().equals(user.getId())) {
+            throw new SecurityException("Shipping address does not belong to the user");
+        }
+        
+        order.setShippingAddress(shippingAddress);
+        
+        // Process order items
+        List<OrderItem> orderItems = new ArrayList<>();
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        
+        for (OrderDtos.OrderItemRequest itemRequest : request.getItems()) {
+            Product product = productRepository.findById(itemRequest.getProductId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + itemRequest.getProductId()));
+            
+            // Check stock
+            if (product.getStock() < itemRequest.getQuantity()) {
+                throw new InsufficientStockException("Insufficient stock for product: " + product.getName());
+            }
+            
+            // Create order item
+            OrderItem orderItem = new OrderItem();
+            orderItem.setProduct(product);
+            orderItem.setQuantity(itemRequest.getQuantity());
+            orderItem.setUnitPrice(product.getPrice());
+            orderItem.setOrder(order);
+            
+            // Calculate subtotal
+            BigDecimal subtotal = product.getPrice().multiply(BigDecimal.valueOf(itemRequest.getQuantity()));
+            orderItem.setSubtotal(subtotal);
+            
+            orderItems.add(orderItem);
+            totalAmount = totalAmount.add(subtotal);
+            
+            // Update product stock
+            product.setStock(product.getStock() - itemRequest.getQuantity());
+            productRepository.save(product);
+        }
+        
+        order.setOrderItems(orderItems);
+        order.setTotalAmount(totalAmount);
+        
+        // Save the order
+        Order savedOrder = orderRepository.save(order);
+        logger.info("Direct order placed successfully. Order ID: {}", savedOrder.getId());
+        
+        return savedOrder;
+    }
+    
     @Override
     @Transactional
     public Order placeOrder(User user, OrderDtos.PlaceOrderRequest request) {
@@ -163,6 +236,8 @@ public class OrderServiceImpl implements OrderService {
             .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
     }
     
+
+    
     @Override
     @Transactional(readOnly = true)
     public List<Order> getOrdersForUser(User user) {
@@ -177,11 +252,27 @@ public class OrderServiceImpl implements OrderService {
         return orderRepository.findByUserOrderByCreatedAtDesc(user, pageable);
     }
     
+//    @Override
+//    @Transactional(readOnly = true)
+//    public Order getOrderForUser(User user, Long orderId) {
+//        logger.debug("Fetching order {} for user {}", orderId, user.getId());
+//        return orderRepository.findByIdAndUser(orderId, user)
+//            .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
+//    }
+//
+//    // This method is not part of the interface but kept for backward compatibility
+//    @Transactional(readOnly = true)
+//    public Order getOrderById(Long orderId) {
+//        logger.debug("Fetching order by ID: {}", orderId);
+//        return orderRepository.findById(orderId)
+//                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
+//    }
+//
     @Override
     @Transactional(readOnly = true)
-    public Page<Order> getOrdersForUser(Long userId, Pageable pageable) {
-        logger.debug("Fetching paginated orders for user ID: {}", userId);
-        return orderRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable);
+    public Page<Order> searchOrders(String query, Pageable pageable) {
+        logger.debug("Searching orders with query: {}", query);
+        return orderRepository.searchOrders(query, pageable);
     }
     
     @Override
@@ -189,6 +280,95 @@ public class OrderServiceImpl implements OrderService {
     public List<Order> getAllOrders() {
         logger.debug("Fetching all orders");
         return orderRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
+    }
+    
+    @Override
+    @Transactional
+    public Order createRefillOrder(Subscription subscription) throws InvalidOrderException {
+        if (subscription == null || !subscription.isActive()) {
+            throw new InvalidOrderException("Invalid or inactive subscription");
+        }
+
+        try {
+            // Create a new order for the refill
+            Order order = new Order();
+            order.setUser(subscription.getUser());
+            order.setOrderDate(LocalDateTime.now());
+            order.setStatus(Order.OrderStatus.PROCESSING);
+            order.setType(Order.OrderType.REFILL);
+            order.setSubscriptionId(subscription.getId());
+            
+            // Set default shipping address from user's addresses if available
+            subscription.getUser().getAddresses().stream()
+                .filter(Address::isDefault)
+                .findFirst()
+                .ifPresent(order::setShippingAddress);
+            
+            BigDecimal totalAmount = BigDecimal.ZERO;
+            
+            // Add products from subscription to the order
+            for (Map.Entry<Product, Integer> entry : subscription.getProductQuantities().entrySet()) {
+                Product product = entry.getKey();
+                Integer quantity = entry.getValue();
+                
+                // Check stock
+                if (product.getStock() < quantity) {
+                    throw new InvalidOrderException("Insufficient stock for product: " + product.getName());
+                }
+                
+                // Create order item
+                OrderItem orderItem = new OrderItem();
+                orderItem.setProduct(product);
+                orderItem.setQuantity(quantity);
+                orderItem.setUnitPrice(product.getRefillPrice() != null ? 
+                                 product.getRefillPrice() : product.getPrice());
+                orderItem.setOrder(order);
+                
+                // Calculate subtotal
+                BigDecimal itemTotal = orderItem.getUnitPrice().multiply(BigDecimal.valueOf(quantity));
+                totalAmount = totalAmount.add(itemTotal);
+                
+                // Add to order
+                order.getOrderItems().add(orderItem);
+                
+                // Update product stock
+                product.setStock(product.getStock() - quantity);
+                productRepository.save(product);
+            }
+            
+            // Set order total
+            order.setTotalAmount(totalAmount);
+            order.setSubtotal(totalAmount); // No tax or shipping for refills by default
+            
+            // Generate order number
+            order.setOrderNumber("REF-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
+            
+            // Save the order
+            Order savedOrder = orderRepository.save(order);
+            
+            // Save order items
+            orderItemRepository.saveAll(order.getOrderItems());
+            
+            logger.info("Created refill order {} for subscription {}", savedOrder.getId(), subscription.getId());
+            return savedOrder;
+            
+        } catch (Exception e) {
+            logger.error("Error creating refill order for subscription {}: {}", 
+                       subscription.getId(), e.getMessage(), e);
+            throw new InvalidOrderException("Failed to create refill order: " + e.getMessage(), e);
+        }
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public List<Order> findRefillOrdersBySubscription(Long subscriptionId) {
+        if (subscriptionId == null) {
+            throw new IllegalArgumentException("Subscription ID cannot be null");
+        }
+        return orderRepository.findRefillOrdersBySubscription(
+            subscriptionId, 
+            Sort.by(Sort.Direction.DESC, "orderDate")
+        );
     }
     
     @Override
@@ -206,9 +386,35 @@ public class OrderServiceImpl implements OrderService {
     
     @Override
     @Transactional(readOnly = true)
-    public Optional<Order> getOrderById(Long orderId) {
+    public Page<Order> findAllWithFilters(
+            Order.OrderStatus status,
+            LocalDate fromDate,
+            LocalDate toDate,
+            String searchQuery,
+            Pageable pageable) {
+        
+        logger.debug("Finding all orders with filters - status: {}, fromDate: {}, toDate: {}, searchQuery: {}", 
+            status, fromDate, toDate, searchQuery);
+            
+        if (fromDate != null && toDate != null && fromDate.isAfter(toDate)) {
+            throw new IllegalArgumentException("From date must be before or equal to To date");
+        }
+        
+        return orderRepository.findAllWithFilters(
+            status,
+            fromDate != null ? fromDate.atStartOfDay() : null,
+            toDate != null ? toDate.plusDays(1).atStartOfDay() : null,
+            searchQuery,
+            pageable
+        );
+    }
+    
+    @Override
+    @Transactional(readOnly = true)
+    public Order getOrderById(Long orderId) {
         logger.debug("Fetching order by ID: {}", orderId);
-        return orderRepository.findById(orderId);
+        return orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
     }
     
     @Override

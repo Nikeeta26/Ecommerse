@@ -75,8 +75,22 @@ public class Order extends BaseEntity {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
     
+    @Column(name = "subscription_id")
+    private Long subscriptionId;
+    
+    @Enumerated(EnumType.STRING)
+    @Column(name = "order_type", nullable = false)
+    private OrderType type = OrderType.REGULAR;
+    
     @Version
     private Long version;
+    
+    public enum OrderType {
+        REGULAR,    // Standard order from cart
+        BUY_NOW,    // Direct purchase without cart
+        REFILL,     // Subscription refill order
+        REPLACEMENT // Replacement order
+    }
     
     @PreUpdate
     protected void onUpdate() {

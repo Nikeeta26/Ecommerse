@@ -4,6 +4,7 @@ import com.ecommerce.model.Order;
 import com.ecommerce.model.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -43,6 +44,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     
     // Find orders by user and status with pagination
     Page<Order> findByUserAndStatusOrderByCreatedAtDesc(User user, Order.OrderStatus status, Pageable pageable);
+    
+    // Search orders by order number or user email
+    @Query("SELECT o FROM Order o WHERE LOWER(o.orderNumber) LIKE LOWER(concat('%', :query, '%')) OR LOWER(o.user.email) LIKE LOWER(concat('%', :query, '%'))")
+    Page<Order> searchOrders(@Param("query") String query, Pageable pageable);
     
     // Custom query to find recent orders
     @Query("SELECT o FROM Order o WHERE o.user = :user ORDER BY o.createdAt DESC")
@@ -100,4 +105,62 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
         @Param("toDate") LocalDateTime toDate,
         Pageable pageable
     );
+    
+    /**
+     * Find all orders with filters and search query (admin only)
+     * @param status Optional status filter
+     * @param fromDate Optional start date filter (inclusive)
+     * @param toDate Optional end date filter (inclusive)
+     * @param searchQuery Optional search query to filter by order number or user email
+     * @param pageable Pagination information
+     * @return Page of orders matching the criteria
+     */
+    @Query("""
+        SELECT o FROM Order o 
+        LEFT JOIN o.user u
+        WHERE (:status IS NULL OR o.status = :status)
+        AND (:fromDate IS NULL OR o.createdAt >= :fromDate)
+        AND (:toDate IS NULL OR o.createdAt <= :toDate)
+        AND (
+            :searchQuery IS NULL 
+            OR LOWER(o.orderNumber) LIKE LOWER(CONCAT('%', :searchQuery, '%'))
+            OR LOWER(u.email) LIKE LOWER(CONCAT('%', :searchQuery, '%'))
+        )
+        ORDER BY o.createdAt DESC
+    """)
+    Page<Order> findAllWithFilters(
+        @Param("status") Order.OrderStatus status,
+        @Param("fromDate") LocalDateTime fromDate,
+        @Param("toDate") LocalDateTime toDate,
+        @Param("searchQuery") String searchQuery,
+        Pageable pageable
+    );
+    
+    /**
+     * Find orders by subscription ID and order type
+     * @param subscriptionId The subscription ID to search for
+     * @param type The order type (e.g., REFILL)
+     * @param sort Sorting criteria
+     * @return List of orders matching the criteria
+     */
+    List<Order> findBySubscriptionIdAndType(Long subscriptionId, Order.OrderType type, Sort sort);
+    
+    /**
+     * Find paginated orders by subscription ID and order type
+     * @param subscriptionId The subscription ID to search for
+     * @param type The order type (e.g., REFILL)
+     * @param pageable Pagination information
+     * @return Page of orders matching the criteria
+     */
+    Page<Order> findBySubscriptionIdAndType(Long subscriptionId, Order.OrderType type, Pageable pageable);
+    
+    /**
+     * Find all refill orders for a subscription
+     * @param subscriptionId The subscription ID to search for
+     * @param sort Sorting criteria
+     * @return List of refill orders for the subscription
+     */
+    default List<Order> findRefillOrdersBySubscription(Long subscriptionId, Sort sort) {
+        return findBySubscriptionIdAndType(subscriptionId, Order.OrderType.REFILL, sort);
+    }
 }
