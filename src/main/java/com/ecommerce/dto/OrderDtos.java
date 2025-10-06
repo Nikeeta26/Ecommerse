@@ -244,6 +244,40 @@ public class OrderDtos {
         public void setTotalItems(int totalItems) { this.totalItems = totalItems; }
     }
     
+    public static class OrderStatusResponse {
+        private Long id;
+        private String orderNumber;
+        private Order.OrderStatus status;
+        private String trackingNumber;
+        private String carrier;
+        private LocalDateTime updatedAt;
+
+        public static OrderStatusResponse fromEntity(Order order) {
+            OrderStatusResponse response = new OrderStatusResponse();
+            response.setId(order.getId());
+            response.setOrderNumber(order.getOrderNumber());
+            response.setStatus(order.getStatus());
+            response.setTrackingNumber(order.getTrackingNumber());
+            response.setCarrier(order.getShippingCarrier());
+            response.setUpdatedAt(order.getUpdatedAt());
+            return response;
+        }
+
+        // Getters and Setters
+        public Long getId() { return id; }
+        public void setId(Long id) { this.id = id; }
+        public String getOrderNumber() { return orderNumber; }
+        public void setOrderNumber(String orderNumber) { this.orderNumber = orderNumber; }
+        public Order.OrderStatus getStatus() { return status; }
+        public void setStatus(Order.OrderStatus status) { this.status = status; }
+        public String getTrackingNumber() { return trackingNumber; }
+        public void setTrackingNumber(String trackingNumber) { this.trackingNumber = trackingNumber; }
+        public String getCarrier() { return carrier; }
+        public void setCarrier(String carrier) { this.carrier = carrier; }
+        public LocalDateTime getUpdatedAt() { return updatedAt; }
+        public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    }
+    
     public static class AdminOrderResponse extends OrderResponse {
         private String customerName;
         private String customerEmail;

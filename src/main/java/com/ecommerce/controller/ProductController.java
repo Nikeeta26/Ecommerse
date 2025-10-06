@@ -1,5 +1,6 @@
 package com.ecommerce.controller;
 
+import com.ecommerce.dto.ProductRequestDTO;
 import com.ecommerce.dto.ProductResponseDTO;
 import com.ecommerce.model.Product;
 import com.ecommerce.service.ProductService;
@@ -65,17 +66,22 @@ public class ProductController {
     
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/admin/products")
-    public ResponseEntity<ProductResponseDTO> create(@Valid @RequestBody Product product) {
+    public ResponseEntity<ProductResponseDTO> create(@Valid @RequestBody ProductRequestDTO productRequest) {
+        Product product = productRequest.toProduct();
         Product createdProduct = productService.create(product);
         return ResponseEntity.ok(ProductResponseDTO.fromProduct(createdProduct));
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/admin/products/{id}")
-    public ResponseEntity<ProductResponseDTO> update(@PathVariable Long id, @Valid @RequestBody Product product) {
-        return productService.update(id, product)
-                .map(ProductResponseDTO::fromProduct)
-                .map(ResponseEntity::ok)
+    public ResponseEntity<ProductResponseDTO> update(@PathVariable Long id, @Valid @RequestBody ProductRequestDTO productRequest) {
+        return productService.findById(id)
+                .map(existingProduct -> {
+                    productRequest.updateProduct(existingProduct);
+                    return productService.update(id, existingProduct)
+                            .map(updatedProduct -> ResponseEntity.ok(ProductResponseDTO.fromProduct(updatedProduct)))
+                            .orElse(ResponseEntity.notFound().build());
+                })
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -86,6 +92,15 @@ public class ProductController {
         return ResponseEntity.noContent().build();
     }
 }
+
+
+
+
+//-- Drop the column
+//ALTER TABLE products DROP COLUMN IF EXISTS product_type;
+//ALTER TABLE orders ALTER COLUMN order_type DROP NOT NULL;
+
+
 
 //curl --location 'http://localhost:8080/api/products/7'
 

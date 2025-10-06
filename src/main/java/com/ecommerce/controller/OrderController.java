@@ -4,6 +4,8 @@ import com.ecommerce.dto.OrderDtos;
 import com.ecommerce.model.Order;
 import com.ecommerce.security.UserPrincipal;
 import com.ecommerce.service.OrderService;
+import com.ecommerce.dto.OrderListDTO;
+import com.ecommerce.model.Order;
 import com.ecommerce.repository.UserRepository;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,11 +17,15 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import com.ecommerce.model.Order;
 import com.ecommerce.exception.InvalidOrderException;
 import com.ecommerce.exception.ResourceNotFoundException;
+import com.ecommerce.dto.UpdateOrderStatusRequest;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 
 import java.net.URI;
@@ -166,6 +172,18 @@ public class OrderController {
     /**
      * Get current user's order history with pagination and filtering
      */
+    /**
+     * Get all orders (public endpoint)
+     * @return List of simplified order information
+     */
+    @GetMapping("/all")
+    public ResponseEntity<List<OrderListDTO>> getAllOrders() {
+        List<OrderListDTO> orders = orderService.findAll().stream()
+                .map(OrderListDTO::fromEntity)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(orders);
+    }
+    
     @GetMapping("/my-orders")
     public ResponseEntity<Page<OrderDtos.OrderSummary>> getMyOrders(
             @AuthenticationPrincipal UserPrincipal principal,
@@ -194,31 +212,15 @@ public class OrderController {
     }
 
     // Admin endpoints
-
-    /**
-     * Get all orders with filtering and pagination (admin only)
+     /* Get all orders with filtering and pagination (admin only)
      */
-    @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping("/admin")
-    public ResponseEntity<Page<OrderDtos.AdminOrderSummary>> getAllOrders(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) Long userId,
-            @RequestParam(required = false) Order.OrderStatus status,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate) {
+//    @PreAuthorize("hasRole('ADMIN')")
+//    @GetMapping("/all")
+//    public ResponseEntity<List<Order>> getAllOrders() {
+//        return ResponseEntity.ok(orderService.findAll());
+//    }
+    
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-
-        Page<Order> orders = orderService.findAllWithFilters(
-            userId, status, fromDate, toDate, pageable);
-
-        return ResponseEntity.ok(orders.map(OrderDtos.AdminOrderSummary::fromEntity));
-    }
-
-    /**
-     * Get orders for a specific user (admin only)
-     */
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/user/{userId}")
     public ResponseEntity<Page<OrderDtos.AdminOrderSummary>> getUserOrders(
@@ -235,7 +237,7 @@ public class OrderController {
      * Admin: Get order details
      */
     @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping("/admin/{orderId}")
+    @GetMapping("/admin/orders/{orderId}")
     public ResponseEntity<OrderDtos.AdminOrderResponse> getOrderDetailsAdmin(
             @PathVariable Long orderId) {
 
@@ -244,28 +246,89 @@ public class OrderController {
 
         return ResponseEntity.ok(OrderDtos.AdminOrderResponse.fromEntity(order));
     }
+    
+    @GetMapping("/status/{status}")
+    @PreAuthorize("permitAll()")
+    public ResponseEntity<List<OrderDtos.OrderStatusResponse>> getOrdersByStatus(
+            @PathVariable("status") String statusStr) {
+            
+        try {
+            // Convert the string status to enum
+            Order.OrderStatus status = Order.OrderStatus.valueOf(statusStr.toUpperCase());
+            
+            logger.info("Fetching orders with status: {}", status);
+            List<Order> orders = orderService.getOrdersByStatus(status);
+            
+            List<OrderDtos.OrderStatusResponse> response = orders.stream()
+                .map(OrderDtos.OrderStatusResponse::fromEntity)
+                .collect(Collectors.toList());
+                
+            return ResponseEntity.ok(response);
+            
+        } catch (IllegalArgumentException e) {
+            logger.error("Invalid status value: {}", statusStr, e);
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            logger.error("Error fetching orders by status: {}", statusStr, e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 
     /**
-     * Update order status (Admin only)
+     * Update order status
+     * @param orderId ID of the order to update
+     * @param request UpdateOrderStatusRequest containing the new status and optional tracking info
+     * @return ResponseEntity with the updated order status or error message
      */
-    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{orderId}/status")
-    public ResponseEntity<OrderDtos.AdminOrderResponse> updateOrderStatus(
+    public ResponseEntity<?> updateOrderStatus(
             @PathVariable Long orderId,
-            @Valid @RequestBody OrderDtos.UpdateStatusRequest request) {
-
-        Order updatedOrder;
+            @Valid @RequestBody UpdateOrderStatusRequest request) {
+        
+        logger.info("Updating status for order {} to {}", orderId, request.getStatus());
+        
         try {
-            updatedOrder = orderService.updateOrderStatus(orderId, request.getStatus());
-            return ResponseEntity.ok(OrderDtos.AdminOrderResponse.fromEntity(updatedOrder));
+            // Update the order status
+            Order updatedOrder = orderService.updateOrderStatus(orderId, request.getStatus());
+            logger.info("Successfully updated order {} status to {}", orderId, updatedOrder.getStatus());
+            
+            // If tracking info is provided, update it
+            if (request.getTrackingNumber() != null || request.getCarrier() != null) {
+                logger.debug("Updating tracking info for order {}: {} - {}", 
+                    orderId, request.getCarrier(), request.getTrackingNumber());
+                    
+                updatedOrder = orderService.updateOrderTracking(
+                    orderId, 
+                    request.getTrackingNumber(), 
+                    request.getCarrier()
+                );
+                logger.info("Successfully updated tracking info for order {}", orderId);
+            }
+            
+            // Return the simplified response with 200 OK
+            return ResponseEntity.ok(OrderDtos.OrderStatusResponse.fromEntity(updatedOrder));
+            
         } catch (InvalidOrderException e) {
-            return ResponseEntity.badRequest().build();
+            // Create a response with error status
+            Order errorOrder = new Order();
+            errorOrder.setId(orderId);
+            errorOrder.setStatus(Order.OrderStatus.PENDING); // Default status
+            errorOrder.setUpdatedAt(LocalDateTime.now());
+            OrderDtos.OrderStatusResponse errorResponse = OrderDtos.OrderStatusResponse.fromEntity(errorOrder);
+            
+            return ResponseEntity.badRequest().body(errorResponse);
+        } catch (Exception e) {
+            // Create a response with error status
+            Order errorOrder = new Order();
+            errorOrder.setId(orderId);
+            errorOrder.setStatus(Order.OrderStatus.PENDING); // Default status
+            errorOrder.setUpdatedAt(LocalDateTime.now());
+            OrderDtos.OrderStatusResponse errorResponse = OrderDtos.OrderStatusResponse.fromEntity(errorOrder);
+            
+            return ResponseEntity.internalServerError().body(errorResponse);
         }
     }
 }
-
-
-
 
 
 //ALTER TABLE admins ALTER COLUMN password SET NOT NULL;
@@ -452,3 +515,8 @@ public class OrderController {
 //        Notes
 //All endpoints require authentication via JWT token in the Authorization header
 //
+
+
+
+
+//GET http://localhost:8080/api/orders/all

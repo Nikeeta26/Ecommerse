@@ -32,8 +32,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     // Find order by order number
     Optional<Order> findByOrderNumber(String orderNumber);
     
-    // Find orders by status
-    List<Order> findByStatus(Order.OrderStatus status);
+    // Find orders by status ordered by creation date descending
+    List<Order> findByStatusOrderByCreatedAtDesc(Order.OrderStatus status);
     
     // Find orders by status with pagination
     Page<Order> findByStatus(Order.OrderStatus status, Pageable pageable);

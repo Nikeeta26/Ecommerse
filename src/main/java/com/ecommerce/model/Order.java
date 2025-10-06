@@ -42,6 +42,9 @@ public class Order extends BaseEntity {
     @Column(name = "tracking_number")
     private String trackingNumber;
     
+    @Column(name = "shipping_carrier")
+    private String shippingCarrier;
+    
     @Column(name = "order_number", unique = true, nullable = false)
     private String orderNumber;
     

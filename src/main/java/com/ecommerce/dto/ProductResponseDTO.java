@@ -19,6 +19,7 @@ public class ProductResponseDTO {
     private Integer stock;
     private String imageUrl;
     private Product.Category category;
+    private Product.Subcategory subcategory;
     private Boolean active;
 
     public static ProductResponseDTO fromProduct(Product product) {
@@ -36,6 +37,7 @@ public class ProductResponseDTO {
         dto.setStock(product.getStock());
         dto.setImageUrl(product.getImageUrl());
         dto.setCategory(product.getCategory());
+        dto.setSubcategory(product.getSubcategory());
 
         
         return dto;

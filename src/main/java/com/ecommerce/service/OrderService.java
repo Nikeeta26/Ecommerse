@@ -29,9 +29,13 @@ public interface OrderService {
     
     Page<Order> getAllOrders(Pageable pageable);
     
+    List<Order> findAll();
+    
     Optional<Order> getOrderById(Long orderId);
     
     Order updateOrderStatus(Long orderId, Order.OrderStatus newStatus) throws InvalidOrderException;
+    
+    Order updateOrderTracking(Long orderId, String trackingNumber, String carrier) throws InvalidOrderException;
     
     Order cancelOrder(User user, Long orderId, String reason) throws InvalidOrderException;
     
@@ -46,6 +50,13 @@ public interface OrderService {
         Pageable pageable);
         
     /**
+     * Find all orders with a specific status
+     * @param status The status to filter orders by
+     * @return List of orders with the specified status
+     */
+    List<Order> getOrdersByStatus(Order.OrderStatus status);
+        
+    /**
      * Find all orders with filters (admin only)
      */
     Page<Order> findAllWithFilters(
@@ -54,4 +65,11 @@ public interface OrderService {
         LocalDate fromDate,
         LocalDate toDate,
         Pageable pageable);
+        
+    /**
+     * Get all orders with a specific status
+     * @param status The status to filter orders by
+     * @return List of orders with the specified status
+     */
+
 }

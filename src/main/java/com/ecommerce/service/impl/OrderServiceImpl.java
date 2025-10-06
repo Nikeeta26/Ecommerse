@@ -190,11 +190,17 @@ public class OrderServiceImpl implements OrderService {
         logger.debug("Fetching all orders");
         return orderRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Order> findAll() {
+        logger.debug("Fetching all orders (unfiltered)");
+        return orderRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt"));
+    }
     
     @Override
     @Transactional(readOnly = true)
     public Page<Order> getAllOrders(Pageable pageable) {
-        logger.debug("Fetching paginated orders");
         return orderRepository.findAll(
             PageRequest.of(
                 pageable.getPageNumber(), 
@@ -224,9 +230,7 @@ public class OrderServiceImpl implements OrderService {
             .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
             
         // Validate status transition
-        if (!isValidStatusTransition(order.getStatus(), newStatus)) {
-            throw new InvalidOrderException("Invalid status transition from " + order.getStatus() + " to " + newStatus);
-        }
+        validateStatusTransition(order.getStatus(), newStatus);
         
         // Update status and relevant timestamps
         Order.OrderStatus oldStatus = order.getStatus();
@@ -272,6 +276,35 @@ public class OrderServiceImpl implements OrderService {
         logger.debug("Order {} status updated from {} to {}", orderId, oldStatus, newStatus);
         
         return updatedOrder;
+    }
+    
+    @Override
+    @Transactional
+    public Order updateOrderTracking(Long orderId, String trackingNumber, String carrier) throws InvalidOrderException {
+        logger.info("Updating tracking info for order {}: {}/{}", orderId, carrier, trackingNumber);
+        
+        Order order = orderRepository.findById(orderId)
+            .orElseThrow(() -> new InvalidOrderException("Order not found with id: " + orderId));
+            
+        // Update tracking info if provided
+        if (trackingNumber != null) {
+            order.setTrackingNumber(trackingNumber);
+        }
+        
+//        if (carrier != null) {
+//            order.setShippingCarrier(carrier);
+//        }
+        
+        // If we have both tracking number and carrier, and status is not already SHIPPED,
+        // automatically update status to SHIPPED
+        if (trackingNumber != null && carrier != null && 
+            order.getStatus() != Order.OrderStatus.SHIPPED) {
+            order.setStatus(Order.OrderStatus.SHIPPED);
+            order.setShippedDate(LocalDateTime.now());
+            logger.info("Order {} status updated to SHIPPED with tracking info", orderId);
+        }
+        
+        return orderRepository.save(order);
     }
     
     @Override
@@ -356,7 +389,14 @@ public class OrderServiceImpl implements OrderService {
             pageable
         );
     }
-    
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Order> getOrdersByStatus(Order.OrderStatus status) {
+        logger.debug("Fetching orders with status: {}", status);
+        return orderRepository.findByStatusOrderByCreatedAtDesc(status);
+    }
+
     private String generateOrderNumber() {
         return "ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
     }
@@ -380,40 +420,67 @@ public class OrderServiceImpl implements OrderService {
                     Product product = item.getProduct();
                     product.setStock(product.getStock() + item.getQuantity());
                     productRepository.save(product);
-                    logger.debug("Restored stock for product {}. New stock: {}", 
-                        product.getName(), product.getStock());
+                    logger.debug("Restored stock for product {}. New stock: {}",
+                            product.getName(), product.getStock());
                 }
             }
         }
     }
     
     /**
-     * Validate if a status transition is allowed
+     * Validates if a status transition is allowed
+     * @param oldStatus The current order status
+     * @param newStatus The new order status to transition to
+     * @throws InvalidOrderException if the transition is not allowed
      */
-    private boolean isValidStatusTransition(Order.OrderStatus currentStatus, Order.OrderStatus newStatus) {
-        // Define valid status transitions
-        switch (currentStatus) {
+    private void validateStatusTransition(Order.OrderStatus oldStatus, Order.OrderStatus newStatus) 
+            throws InvalidOrderException {
+        logger.debug("Validating status transition from {} to {}", oldStatus, newStatus);
+        
+        // Allow same status (no-op)
+        if (oldStatus == newStatus) {
+            return;
+        }
+        
+        boolean isValidTransition = false;
+        
+        switch (oldStatus) {
             case PENDING:
-                return newStatus == Order.OrderStatus.PROCESSING || 
-                       newStatus == Order.OrderStatus.CANCELLED;
-                       
+                // PENDING can transition to PROCESSING or CANCELLED
+                isValidTransition = (newStatus == Order.OrderStatus.PROCESSING || 
+                                   newStatus == Order.OrderStatus.CANCELLED);
+                break;
+                
             case PROCESSING:
-                return newStatus == Order.OrderStatus.SHIPPED || 
-                       newStatus == Order.OrderStatus.CANCELLED;
-                       
+                // PROCESSING can transition to SHIPPED or CANCELLED
+                isValidTransition = (newStatus == Order.OrderStatus.SHIPPED || 
+                                   newStatus == Order.OrderStatus.CANCELLED);
+                break;
+                
             case SHIPPED:
-                return newStatus == Order.OrderStatus.DELIVERED;
+                // SHIPPED can only transition to DELIVERED
+                isValidTransition = (newStatus == Order.OrderStatus.DELIVERED);
+                break;
                 
             case DELIVERED:
-                return newStatus == Order.OrderStatus.REFUNDED;
+                // DELIVERED can only transition to REFUNDED
+                isValidTransition = (newStatus == Order.OrderStatus.REFUNDED);
+                break;
                 
             case CANCELLED:
             case REFUNDED:
-                // No further transitions allowed from these states
-                return false;
+                // No further status changes allowed from these states
+                isValidTransition = false;
+                break;
                 
             default:
-                return false;
+                throw new InvalidOrderException("Unknown order status: " + oldStatus);
+        }
+        
+        if (!isValidTransition) {
+            throw new InvalidOrderException(
+                String.format("Invalid status transition from %s to %s", oldStatus, newStatus)
+            );
         }
     }
 }

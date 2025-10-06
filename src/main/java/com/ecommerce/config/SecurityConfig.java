@@ -77,6 +77,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers("/api/user/checkUsernameAvailability", "/api/user/checkEmailAvailability").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/products/**", "/api/categories/**").permitAll()
+                // Allow public access to order status endpoints
+                .requestMatchers("/api/orders/status/**").permitAll()
+                .requestMatchers("/api/orders/*/status").permitAll()
                 .requestMatchers("/api/addresses/user/**").hasRole("ADMIN") // Only admin can access other users' addresses
                 .requestMatchers("/api/addresses/**").authenticated() // Authenticated users can access their own addresses
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
