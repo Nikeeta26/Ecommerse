@@ -1,6 +1,7 @@
 package com.ecommerce.service.impl;
 
 import com.ecommerce.dto.SignupRequest;
+import com.ecommerce.dto.UpdateProfileRequest;
 import com.ecommerce.model.User;
 import com.ecommerce.model.Admin;
 import com.ecommerce.repository.UserRepository;
@@ -47,6 +48,35 @@ public class UserServiceImpl implements UserService {
         user.setPhone(request.getPhone());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setRole(User.UserRole.ROLE_USER);
+        return userRepository.save(user);
+    }
+
+    @Override
+    @Transactional
+    public User updateProfile(Long userId, UpdateProfileRequest request) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
+
+        if (request.getFullName() != null && !request.getFullName().isBlank()) {
+            user.setFullName(request.getFullName());
+        }
+
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            // Check if email is already taken by another user
+            if (userRepository.existsByEmailAndIdNot(request.getEmail(), userId)) {
+                throw new RuntimeException("Email is already in use");
+            }
+            user.setEmail(request.getEmail());
+        }
+
+        if (request.getPhone() != null && !request.getPhone().isBlank()) {
+            // Check if phone is already taken by another user
+            if (userRepository.existsByPhoneAndIdNot(request.getPhone(), userId)) {
+                throw new RuntimeException("Phone number is already in use");
+            }
+            user.setPhone(request.getPhone());
+        }
+
         return userRepository.save(user);
     }
 

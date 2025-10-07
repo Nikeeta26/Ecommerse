@@ -1,6 +1,7 @@
 package com.ecommerce.service;
 
 import com.ecommerce.dto.SignupRequest;
+import com.ecommerce.dto.UpdateProfileRequest;
 import com.ecommerce.model.User;
 
 public interface UserService {
@@ -11,4 +12,6 @@ public interface UserService {
      * This is intended for bootstrapping or controlled environments.
      */
     User createAdmin(SignupRequest request, String setupCode);
+    
+    User updateProfile(Long userId, UpdateProfileRequest request);
 }
